@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, SectionLabel } from "../components/ui/";
+import {
+  Button,
+  Card,
+  SectionLabel,
+  ConfirmDialog,
+  SkeletonCard,
+  SkeletonSessionCard,
+} from "../components/ui/";
 import { connectSocket, disconnectSocket } from "../socket";
 import Header from "../components/Header";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -12,6 +19,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const pollRef = useRef(null);
+  const [confirmEnd, setConfirmEnd] = useState(null); // sessionId to confirm
 
   // Fetch active sessions via REST
   const fetchSessions = useCallback(
@@ -54,7 +62,6 @@ export default function AdminDashboard() {
     pollRef.current = setInterval(() => fetchSessions(token), 5000);
 
     // 3. Also connect socket to get real-time sessions-update events
-    // Use stored role and name from localStorage
     const role = localStorage.getItem("agent_role") || "supervisor";
     const name = localStorage.getItem("agent_name") || "Supervisor";
     const s = connectSocket(token, role, name);
@@ -82,9 +89,6 @@ export default function AdminDashboard() {
 
   const handleForceEnd = async (sessionId) => {
     const token = localStorage.getItem("agent_token");
-    if (!window.confirm(`Force-terminate session ${sessionId.slice(0, 8)}...?`))
-      return;
-
     try {
       const res = await fetch(
         `${BACKEND_URL}/admin/sessions/${sessionId}/end`,
@@ -104,6 +108,7 @@ export default function AdminDashboard() {
     } catch {
       alert("Network error — could not reach server.");
     }
+    setConfirmEnd(null);
   };
 
   const formatDuration = (sec) => {
@@ -131,7 +136,7 @@ export default function AdminDashboard() {
               className="text-4xl font-semibold mb-1"
               style={{ fontFamily: '"Playfair Display", serif' }}
             >
-              Admin Monitor
+              Supervisor Monitor
             </h1>
             <p className="text-sm text-[var(--muted-foreground)]">
               Live sessions · Force-terminate · Observability
@@ -147,40 +152,50 @@ export default function AdminDashboard() {
 
         {/* Metrics strip */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          <Card accentTop className="p-5">
-            <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
-              Active Sessions
-            </p>
-            <p
-              className="text-4xl font-semibold text-[var(--accent)]"
-              style={{ fontFamily: '"Playfair Display", serif' }}
-            >
-              {activeSessions.length}
-            </p>
-          </Card>
-          <Card className="p-5">
-            <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
-              Connected Participants
-            </p>
-            <p
-              className="text-4xl font-semibold"
-              style={{ fontFamily: '"Playfair Display", serif' }}
-            >
-              {activeSessions.reduce(
-                (acc, s) => acc + (s.participants_count || 0),
-                0,
-              )}
-            </p>
-          </Card>
-          <Card className="p-5">
-            <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
-              Polling
-            </p>
-            <p className="text-sm font-mono text-emerald-600 flex items-center gap-2 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-              Every 5s
-            </p>
-          </Card>
+          {loading ? (
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : (
+            <>
+              <Card accentTop className="p-5">
+                <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
+                  Active Sessions
+                </p>
+                <p
+                  className="text-4xl font-semibold text-[var(--accent)]"
+                  style={{ fontFamily: '"Playfair Display", serif' }}
+                >
+                  {activeSessions.length}
+                </p>
+              </Card>
+              <Card className="p-5">
+                <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
+                  Connected Participants
+                </p>
+                <p
+                  className="text-4xl font-semibold"
+                  style={{ fontFamily: '"Playfair Display", serif' }}
+                >
+                  {activeSessions.reduce(
+                    (acc, s) => acc + (s.participants_count || s.participants?.length || 0),
+                    0,
+                  )}
+                </p>
+              </Card>
+              <Card className="p-5">
+                <p className="font-mono text-xs text-[var(--muted-foreground)] uppercase tracking-widest mb-1">
+                  Polling
+                </p>
+                <p className="text-sm font-mono text-emerald-600 flex items-center gap-2 mt-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                  Every 5s
+                </p>
+              </Card>
+            </>
+          )}
         </div>
 
         <SectionLabel className="mb-6">Live Sessions</SectionLabel>
@@ -192,8 +207,9 @@ export default function AdminDashboard() {
         )}
 
         {loading ? (
-          <div className="text-center py-16 font-mono text-sm text-[var(--muted-foreground)]">
-            Loading sessions...
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SkeletonSessionCard />
+            <SkeletonSessionCard />
           </div>
         ) : activeSessions.length === 0 ? (
           <Card className="p-12 text-center">
@@ -220,7 +236,7 @@ export default function AdminDashboard() {
                 {/* Session ID + status */}
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded uppercase">
-                    {s.status}
+                    {s.status || "active"}
                   </span>
                   <code className="font-mono text-[10px] text-[var(--muted-foreground)]">
                     {s.id.slice(0, 16)}...
@@ -248,20 +264,22 @@ export default function AdminDashboard() {
                       Duration
                     </span>
                     <span className="font-mono font-bold text-[var(--accent)]">
-                      {formatDuration(s.duration)}
+                      {formatDuration(s.duration || 0)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[var(--muted-foreground)]">
                       Participants
                     </span>
-                    <span className="font-mono">{s.participants_count}</span>
+                    <span className="font-mono">
+                      {s.participants_count || s.participants?.length || 0}
+                    </span>
                   </div>
                 </div>
 
                 {/* Force end */}
                 <Button
-                  onClick={() => handleForceEnd(s.id)}
+                  onClick={() => setConfirmEnd(s.id)}
                   variant="secondary"
                   className="w-full text-red-600 border-red-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all"
                 >
@@ -272,6 +290,17 @@ export default function AdminDashboard() {
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        open={!!confirmEnd}
+        title="Force Terminate Session"
+        message={`Are you sure you want to force-terminate session ${confirmEnd?.slice(0, 8)}...? This will immediately disconnect all participants.`}
+        confirmText="Terminate"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={() => handleForceEnd(confirmEnd)}
+        onCancel={() => setConfirmEnd(null)}
+      />
     </div>
   );
 }
