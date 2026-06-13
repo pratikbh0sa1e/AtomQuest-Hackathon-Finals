@@ -735,7 +735,7 @@ export default function CallRoom() {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#fafaf8] flex flex-col md:flex-row overflow-hidden relative">
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-[#1A1A1A] text-white relative">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-md shadow-lg text-white font-medium transition-all animate-in fade-in slide-in-from-top-5 ${toast.type === "error" ? "bg-red-600" : "bg-[var(--accent)]"}`}>
