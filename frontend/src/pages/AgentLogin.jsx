@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Button, Card, Input, SectionLabel } from "../components/ui/";
+import { Button, Card, Input, SectionLabel, showToast } from "../components/ui/";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
@@ -115,7 +115,8 @@ export default function AgentLogin() {
       const redirectUrl = data.role === "supervisor" ? "/admin" : "/dashboard";
       console.log("[AgentLogin] Redirecting to:", redirectUrl);
 
-      window.location.href = redirectUrl;
+      showToast("Login successful!");
+      navigate(redirectUrl, { replace: true });
     } catch {
       setServerError(
         "Unable to reach the server. Please check your connection.",
