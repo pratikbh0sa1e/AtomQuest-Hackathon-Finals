@@ -13,11 +13,11 @@ import recordingsRouter from "./routes/recordings.js";
 import filesRouter from "./routes/files.js";
 import { registerSignalingHandlers } from "./handlers/signaling.js";
 import metricsRouter from "./routes/metrics.js";
-import analysisRouter from "./routes/analysis.js";
+// import analysisRouter from "./routes/analysis.js";
 import adminRouter from "./routes/admin.js";
 import { incrementError } from "./metrics.js";
 import { onRecordingReady } from "./recording-manager.js";
-import { triggerAnalysis } from "./ai-client.js";
+// import { triggerAnalysis } from "./ai-client.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -48,7 +48,7 @@ app.use("/sessions", authenticate, requireRole("agent"), sessionsRouter);
 app.use("/sessions", authenticate, requireRole("agent"), recordingsRouter);
 
 // Analysis route (agent only) — Requirements 10.3, 10.4, 10.5
-app.use("/sessions", authenticate, requireRole("agent"), analysisRouter);
+// app.use("/sessions", authenticate, requireRole("agent"), analysisRouter);
 
 // Admin route (admin only) - Requirements 8.1, 8.2, 8.3, 8.4, 8.6
 app.use("/admin", authenticate, requireRole("admin"), adminRouter);
@@ -108,7 +108,7 @@ io.on("connection", (socket) => {
 });
 
 // Register AI analysis trigger callback
-onRecordingReady(triggerAnalysis);
+// onRecordingReady(triggerAnalysis);
 
 // Start server
 const PORT = process.env.PORT || 3001;
