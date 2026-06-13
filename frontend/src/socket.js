@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
 // Module-level singleton state
 let socketInstance = null;
@@ -50,14 +50,30 @@ export function getSocketInstance() {
  * @returns {import('socket.io-client').Socket}
  */
 export function connectSocket(token, role, name) {
-  const s = getSocket(token);
-  // Store extra identity info on auth so the server can read it
-  s.auth = { token, role, name };
-  if (!s.connected) {
-    s.connect();
+  // Reuse existing socket if same token — prevents reconnect loops
+  if (socketInstance && currentToken === token) {
+    if (!socketInstance.connected) {
+      socketInstance.connect();
+    }
+    return socketInstance;
   }
-  socketInstance = s;
-  return s;
+
+  // Different token or no socket — disconnect old one
+  if (socketInstance) {
+    socketInstance.disconnect();
+    socketInstance = null;
+  }
+
+  socketInstance = io(BACKEND_URL, {
+    auth: { token },
+    autoConnect: false,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 2000,
+  });
+
+  currentToken = token;
+  socketInstance.connect();
+  return socketInstance;
 }
 
 /**
