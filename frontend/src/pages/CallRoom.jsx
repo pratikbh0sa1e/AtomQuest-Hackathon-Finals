@@ -5,6 +5,7 @@ import { mediasoupClient } from "../mediasoup-client";
 import VideoGrid from "../components/VideoGrid";
 import ControlBar from "../components/ControlBar";
 import ChatPanel from "../components/ChatPanel";
+import { ConfirmDialog } from "../components/ui/";
 
 // Utility to decode JWT token
 function parseJwt(token) {
@@ -65,6 +66,9 @@ export default function CallRoom() {
 
   // Chat/Messages
   const [messages, setMessages] = useState([]);
+  // Confirmation dialogs
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Local producers references
@@ -678,13 +682,11 @@ export default function CallRoom() {
 
   const handleLeaveCall = () => {
     cleanup();
-    // Hard redirect — avoids React router trying to re-render with a dead socket
     const dest = userRoleRef.current === "agent" ? "/dashboard" : "/";
     window.location.href = dest;
   };
 
   const handleEndSession = () => {
-    // Emit end before cleanup so socket is still alive to send the event
     try {
       socket.emit("session:end", { sessionId });
     } catch (_) {}
@@ -782,7 +784,7 @@ export default function CallRoom() {
           <button
             type="button"
             className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-800 bg-[#0d0d0d] w-full cursor-pointer text-left focus:outline-none"
-            onClick={() => setIsChatOpen(false)}
+            onPointerUp={(e) => { e.preventDefault(); e.stopPropagation(); setIsChatOpen(false); }}
           >
             <span className="font-mono text-xs uppercase tracking-wider text-neutral-400">
               Close Chat
@@ -828,9 +830,31 @@ export default function CallRoom() {
         onToggleVideo={handleToggleVideo}
         onToggleRecording={handleToggleRecording}
         onToggleChat={() => setIsChatOpen((p) => !p)}
-        onLeave={handleLeaveCall}
-        onEndSession={handleEndSession}
+        onLeave={() => setShowLeaveConfirm(true)}
+        onEndSession={() => setShowEndConfirm(true)}
         userRole={userRole}
+      />
+
+      <ConfirmDialog
+        open={showLeaveConfirm}
+        title="Leave Call"
+        message="Are you sure you want to leave this call?"
+        confirmText="Leave"
+        cancelText="Stay"
+        variant="danger"
+        onConfirm={handleLeaveCall}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={showEndConfirm}
+        title="End Session"
+        message="This will terminate the call for all participants. Are you sure?"
+        confirmText="End Session"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleEndSession}
+        onCancel={() => setShowEndConfirm(false)}
       />
     </div>
   );

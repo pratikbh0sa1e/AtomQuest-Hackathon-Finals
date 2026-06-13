@@ -27,9 +27,12 @@ export default function ChatPanel({
   const [content, setContent] = useState("");
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll on new message
+  // Auto-scroll on new message — delay to allow mobile drawer animation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   const handleSubmit = (e) => {
@@ -65,7 +68,7 @@ export default function ChatPanel({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
+      <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar" style={{ overscrollBehavior: "contain" }}>
         {messages.map((msg, index) => {
           if (msg.role === "system") {
             return (
