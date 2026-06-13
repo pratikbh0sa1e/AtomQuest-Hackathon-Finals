@@ -9,10 +9,9 @@ import { db } from "../supabase.js";
  * @param {string} role - The required role (e.g. 'agent')
  * @returns {import('express').RequestHandler}
  */
-export function requireRole(role) {
+export function requireRole(...roles) {
   return async function requireRoleMiddleware(req, res, next) {
-    if (!req.user || req.user.role !== role) {
-      // Log the unauthorized attempt to audit_log
+    if (!req.user || !roles.includes(req.user.role)) {
       try {
         await db.from("audit_log").insert({
           participant_id: req.user?.id ?? "unknown",
@@ -21,7 +20,6 @@ export function requireRole(role) {
           ip_address: req.ip ?? null,
         });
       } catch (auditErr) {
-        // Audit failure must not suppress the 403 — log and continue
         console.error(
           "[requireRole] Failed to insert audit_log entry:",
           auditErr,
