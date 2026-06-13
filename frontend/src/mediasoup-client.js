@@ -3,6 +3,8 @@ import { Device } from "mediasoup-client";
 let device = null;
 let sendTransport = null;
 let recvTransport = null;
+let sendTransportConnected = false;
+let recvTransportConnected = false;
 
 /**
  * Creates a mediasoup Device and loads it with the router's RTP capabilities.
@@ -23,17 +25,21 @@ export async function loadDevice(routerRtpCapabilities) {
  */
 export function createSendTransport(socket, params) {
   sendTransport = device.createSendTransport(params);
+  sendTransportConnected = false;
 
   sendTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+    if (sendTransportConnected) {
+      callback();
+      return;
+    }
+    sendTransportConnected = true;
     socket.emit(
       "transport:connect",
       { transportId: sendTransport.id, dtlsParameters },
-      (err) => {
-        if (err) {
-          errback(err);
-        } else {
-          callback();
-        }
+      (response) => {
+        if (response?.error)
+          errback(new Error(response.message || "connect failed"));
+        else callback();
       },
     );
   });
@@ -42,11 +48,11 @@ export function createSendTransport(socket, params) {
     socket.emit(
       "transport:produce",
       { transportId: sendTransport.id, kind, rtpParameters },
-      ({ id, error }) => {
-        if (error) {
-          errback(error);
+      (response) => {
+        if (response?.error) {
+          errback(new Error(response.error));
         } else {
-          callback({ id });
+          callback({ id: response.producerId });
         }
       },
     );
@@ -63,17 +69,21 @@ export function createSendTransport(socket, params) {
  */
 export function createRecvTransport(socket, params) {
   recvTransport = device.createRecvTransport(params);
+  recvTransportConnected = false;
 
   recvTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+    if (recvTransportConnected) {
+      callback();
+      return;
+    }
+    recvTransportConnected = true;
     socket.emit(
       "transport:connect",
       { transportId: recvTransport.id, dtlsParameters },
-      (err) => {
-        if (err) {
-          errback(err);
-        } else {
-          callback();
-        }
+      (response) => {
+        if (response?.error)
+          errback(new Error(response.message || "connect failed"));
+        else callback();
       },
     );
   });
@@ -108,11 +118,12 @@ export function closeTransports() {
   if (sendTransport) {
     sendTransport.close();
     sendTransport = null;
+    sendTransportConnected = false;
   }
-
   if (recvTransport) {
     recvTransport.close();
     recvTransport = null;
+    recvTransportConnected = false;
   }
 }
 
@@ -123,6 +134,10 @@ export function closeTransports() {
 export const mediasoupClient = {
   get device() {
     return device;
+  },
+
+  get recvTransportId() {
+    return recvTransport ? recvTransport.id : null;
   },
 
   /** Alias for loadDevice */
