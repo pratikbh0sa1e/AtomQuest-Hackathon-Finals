@@ -585,16 +585,30 @@ export default function AgentDashboard() {
                               ) : chatMessages.length === 0 ? (
                                 <p className="text-sm text-[var(--muted-foreground)] italic">No messages in this session.</p>
                               ) : (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                   {chatMessages.map((msg) => (
-                                    <div key={msg.id} className="flex gap-2 text-sm">
-                                      <span className="font-mono text-[10px] font-semibold text-[var(--accent)] uppercase shrink-0 pt-0.5">
-                                        {msg.sender_name || msg.sender_role}
-                                      </span>
-                                      <span className="text-[var(--foreground)]">{msg.content}</span>
-                                      <span className="text-[10px] text-[var(--muted-foreground)] shrink-0 pt-0.5 ml-auto">
-                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </span>
+                                    <div key={msg.id} className="flex flex-col gap-1 text-sm border-b border-neutral-100 pb-2 last:border-0">
+                                      <div className="flex gap-2">
+                                        <span className="font-mono text-[10px] font-semibold text-[var(--accent)] uppercase shrink-0 pt-0.5">
+                                          {msg.sender_name || msg.sender_role}
+                                        </span>
+                                        <span className="text-[var(--foreground)]">{msg.content}</span>
+                                        <span className="text-[10px] text-[var(--muted-foreground)] shrink-0 pt-0.5 ml-auto">
+                                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                      </div>
+                                      {msg.file && (
+                                        <div className="ml-[42px]">
+                                          <a 
+                                            href={msg.file.file_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-xs text-[var(--accent)] hover:text-black hover:underline inline-flex items-center gap-1 bg-neutral-50 px-2 py-1 rounded border border-neutral-200 w-fit"
+                                          >
+                                            📎 {msg.file.file_name}
+                                          </a>
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>

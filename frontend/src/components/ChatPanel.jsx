@@ -4,8 +4,8 @@ import FileUploadButton from "./FileUploadButton";
 
 // Inline Send SVG
 const SendIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="white" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-5 h-5">
+    <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
   </svg>
 );
 
@@ -108,9 +108,14 @@ export default function ChatPanel({
                   <Card accentTop className="p-3 mt-2 flex flex-col gap-2 bg-[var(--muted)] border-neutral-200">
                     <div className="flex items-center justify-between gap-4">
                       <div className="overflow-hidden">
-                        <div className="font-mono text-xs font-semibold truncate text-[var(--foreground)]">
+                        <a 
+                          href={msg.file.file_url || msg.file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-xs font-semibold truncate text-[var(--foreground)] hover:text-[var(--accent)] hover:underline"
+                        >
                           {msg.file.file_name || msg.file.name}
-                        </div>
+                        </a>
                         <div className="text-[10px] text-[var(--muted-foreground)] font-mono">
                           {msg.file.mime_type || msg.file.type} • {msg.file.file_size || msg.file.size}
                         </div>
@@ -160,9 +165,9 @@ export default function ChatPanel({
           <Button 
             type="submit" 
             variant="primary" 
-            className="w-10 h-10 p-0 shrink-0 min-h-0 flex items-center justify-center rounded-lg text-white"
+            className="h-10 px-4 p-0 shrink-0 min-h-0 flex items-center justify-center rounded-lg text-white font-mono text-[10px] font-bold tracking-widest"
           >
-            <SendIcon />
+            SEND
           </Button>
         </form>
         <p className="text-[9px] text-[var(--muted-foreground)] mt-1.5 text-left font-mono">

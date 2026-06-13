@@ -8,6 +8,7 @@ import {
   registerTransport,
   sessionRouters,
   closePeer,
+  closeSession,
   peerTransports,
 } from "../mediasoup-worker.js";
 import { db } from "../supabase.js";
@@ -204,20 +205,46 @@ export function registerSignalingHandlers(io, socket) {
         .eq("id", sessionId)
         .eq("status", "pending");
 
-      // Fetch existing chat history and participants for this session
-      const [{ data: chatHistory }, { data: participants }] = await Promise.all(
-        [
-          db
-            .from("messages")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("created_at", { ascending: true }),
-          db
-            .from("participants")
-            .select("*")
-            .eq("session_id", sessionId)
-            .is("left_at", null),
-        ],
+      // Fetch existing chat history, shared files, and participants for this session
+      const [
+        { data: chatHistory }, 
+        { data: participants }, 
+        { data: sharedFiles }
+      ] = await Promise.all([
+        db
+          .from("messages")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true }),
+        db
+          .from("participants")
+          .select("*")
+          .eq("session_id", sessionId)
+          .is("left_at", null),
+        db
+          .from("shared_files")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      const fileMessages = (sharedFiles || []).map((f) => ({
+        id: f.id,
+        sender_name: f.sender_name,
+        sender_role: "agent", // Defaulting to agent since role is not stored
+        content: "Shared a file",
+        created_at: f.created_at,
+        file: {
+          id: f.id,
+          file_name: f.file_name,
+          mime_type: f.mime_type,
+          file_size: `${(f.file_size / (1024 * 1024)).toFixed(2)} MB`,
+          file_url: f.file_url,
+        },
+      }));
+
+      const combinedMessages = [...(chatHistory || []), ...fileMessages].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
       );
 
       // Notify ALL existing peers in the room about this new participant's producers
@@ -251,7 +278,7 @@ export function registerSignalingHandlers(io, socket) {
       socket.emit("session:joined", {
         routerRtpCapabilities: router.rtpCapabilities,
         participants: participants ?? [],
-        messages: chatHistory ?? [],
+        messages: combinedMessages,
         existingProducers,
       });
 

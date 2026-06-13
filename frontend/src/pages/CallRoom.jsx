@@ -259,19 +259,21 @@ export default function CallRoom() {
       ]);
     });
 
-    socket.on("file-shared", (file) => {
+    socket.on("file-shared", (fileInfo) => {
       setMessages((prev) => [
         ...prev,
         {
-          id: file.id,
-          sender: file.sender_name,
-          role: file.sender_role,
-          text: `Shared a file: ${file.file_name}`,
-          file,
-          created_at: file.created_at,
+          id: fileInfo.id,
+          sender: fileInfo.sender_name,
+          role: fileInfo.sender_role,
+          text: "Shared a file",
+          created_at: fileInfo.created_at,
+          file: fileInfo,
         },
       ]);
     });
+
+
 
     socket.on("session-terminated", () => {
       addSystemMessage("This call session has been closed by the agent.");

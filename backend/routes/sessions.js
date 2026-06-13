@@ -271,20 +271,40 @@ router.get("/:id/messages", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const { data: messages, error } = await db
-      .from("messages")
-      .select("*")
-      .eq("session_id", id)
-      .order("created_at", { ascending: true });
+    const [{ data: messages }, { data: sharedFiles }] = await Promise.all([
+      db
+        .from("messages")
+        .select("*")
+        .eq("session_id", id)
+        .order("created_at", { ascending: true }),
+      db
+        .from("shared_files")
+        .select("*")
+        .eq("session_id", id)
+        .order("created_at", { ascending: true }),
+    ]);
 
-    if (error) {
-      console.error("[GET /sessions/:id/messages] DB query error:", error);
-      return res
-        .status(500)
-        .json({ error: "Failed to fetch messages", code: "FETCH_FAILED" });
-    }
+    const fileMessages = (sharedFiles || []).map((f) => ({
+      id: f.id,
+      session_id: f.session_id,
+      sender_name: f.sender_name,
+      sender_role: "agent",
+      content: "Shared a file",
+      created_at: f.created_at,
+      file: {
+        id: f.id,
+        file_name: f.file_name,
+        mime_type: f.mime_type,
+        file_size: `${(f.file_size / (1024 * 1024)).toFixed(2)} MB`,
+        file_url: f.file_url,
+      },
+    }));
 
-    return res.json(messages ?? []);
+    const combinedMessages = [...(messages || []), ...fileMessages].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at)
+    );
+
+    return res.json(combinedMessages);
   } catch (err) {
     console.error("[GET /sessions/:id/messages] Unexpected error:", err);
     return res
