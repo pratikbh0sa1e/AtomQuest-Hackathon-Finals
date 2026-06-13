@@ -5,7 +5,7 @@ import AgentDashboard from "./pages/AgentDashboard";
 import CustomerJoin from "./pages/CustomerJoin";
 import CallRoom from "./pages/CallRoom";
 import AdminDashboard from "./pages/AdminDashboard";
-import { Button, Card, SectionLabel } from "./components/ui/";
+import { Button, Card, SectionLabel, ToastContainer } from "./components/ui/";
 
 // Custom SVG Icons
 const ShieldIcon = () => (
@@ -56,61 +56,71 @@ function ProtectedAgentRoute({ children }) {
 // Protected route — supervisor only (admin dashboard)
 function ProtectedAdminRoute({ children }) {
   const token = localStorage.getItem("agent_token");
-
-  console.log("[ProtectedAdminRoute] token exists:", !!token);
-
-  if (!token) {
-    console.log("[ProtectedAdminRoute] No token, redirecting to /login");
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!token) return <Navigate to="/login" replace />;
   const payload = parseJwt(token);
-  console.log("[ProtectedAdminRoute] payload:", payload);
-
-  if (!payload) {
-    console.log("[ProtectedAdminRoute] Invalid token, redirecting to /login");
-    return <Navigate to="/login" replace />;
-  }
-
-  if (payload.role === "agent") {
-    console.log(
-      "[ProtectedAdminRoute] Agent trying to access admin, redirecting to /dashboard",
-    );
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (payload.role !== "supervisor") {
-    console.log(
-      "[ProtectedAdminRoute] Role is not supervisor, got:",
-      payload.role,
-    );
-    return <Navigate to="/login" replace />;
-  }
-
-  console.log("[ProtectedAdminRoute] Access granted for supervisor");
+  if (!payload) return <Navigate to="/login" replace />;
+  if (payload.role === "agent") return <Navigate to="/dashboard" replace />;
+  if (payload.role !== "supervisor") return <Navigate to="/login" replace />;
   return children;
 }
 
+// ── Step Icons ────────────────────────────────────────────────────────────────
+const StepCreateIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+  </svg>
+);
+const StepShareIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+  </svg>
+);
+const StepVideoIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25z" />
+  </svg>
+);
+
+// ── Tech Stack Data ───────────────────────────────────────────────────────────
+const TECH_STACK = [
+  { name: "WebRTC", desc: "Real-time media" },
+  { name: "mediasoup", desc: "SFU routing" },
+  { name: "Supabase", desc: "Auth & DB" },
+  { name: "React", desc: "Frontend UI" },
+  { name: "Socket.IO", desc: "Signaling" },
+  { name: "FFmpeg", desc: "Recording" },
+];
+
+const STEPS = [
+  {
+    icon: <StepCreateIcon />,
+    title: "Create Session",
+    desc: "Agent creates a secure support session from the dashboard and receives a unique invite link.",
+  },
+  {
+    icon: <StepShareIcon />,
+    title: "Share Invite",
+    desc: "Send the one-time invite link to the customer via email, chat, or any messaging channel.",
+  },
+  {
+    icon: <StepVideoIcon />,
+    title: "Connect & Resolve",
+    desc: "Customer joins with one click — live video, chat, screen share, and file exchange in-browser.",
+  },
+];
+
 function WelcomeSelector() {
-  const [showRequestForm, setShowRequestForm] = React.useState(false);
-  const [requestSubmitted, setRequestSubmitted] = React.useState(false);
-
-  const handleCustomerRequest = (e) => {
-    e.preventDefault();
-    setRequestSubmitted(true);
-  };
-
   return (
     <div
       className="min-h-screen flex flex-col justify-between"
       style={{ background: "var(--background)" }}
     >
       {/* Header */}
-      <header className="border-b border-[var(--border)] bg-white/95 px-6 py-4 sticky top-0 z-50">
+      <header className="border-b border-[var(--border)] bg-white/95 backdrop-blur-md px-6 py-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3">
             <span className="font-display text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-              AURA<span className="text-[var(--accent)]">.</span>
+              NEXUS<span className="text-[var(--accent)]">.</span>
             </span>
             <span className="font-mono text-[10px] tracking-wider bg-[var(--muted)] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--muted-foreground)]">
               V1.0
@@ -118,13 +128,18 @@ function WelcomeSelector() {
           </div>
           <span className="flex items-center gap-1.5 text-xs font-mono text-[var(--muted-foreground)]">
             <ShieldIcon />
-            SFU CHANNEL: ROUTED THROUGH SERVER
+            SELF-HOSTED · ZERO THIRD-PARTY
           </span>
         </div>
       </header>
 
-      {/* Hero Welcome */}
-      <div className="max-w-3xl mx-auto px-6 py-16 text-center flex-grow flex flex-col justify-center">
+      {/* Hero Section */}
+      <div className="max-w-4xl mx-auto px-6 py-20 text-center flex-grow flex flex-col justify-center">
+        <div className="mb-4">
+          <span className="inline-block font-mono text-[10px] tracking-[0.2em] uppercase bg-[var(--accent)]/10 text-[var(--accent)] px-3 py-1.5 rounded-full border border-[var(--accent)]/20 mb-6">
+            Self-Hosted Video Support Platform
+          </span>
+        </div>
         <h1
           className="text-5xl md:text-6xl font-medium tracking-tight mb-4"
           style={{
@@ -132,21 +147,56 @@ function WelcomeSelector() {
             color: "var(--foreground)",
           }}
         >
-          Self-Hosted Video Support, <br />
+          Video support, <br />
           <span className="italic text-[var(--accent)]">
-            built with total ownership.
+            with total ownership.
           </span>
         </h1>
-        <p className="text-[var(--muted-foreground)] text-lg mb-12 max-w-lg mx-auto">
+        <p className="text-[var(--muted-foreground)] text-lg mb-12 max-w-xl mx-auto leading-relaxed">
           Conduct, capture, and supervise live video customer calls directly in
-          the browser—with zero third-party media server dependencies.
+          the browser — with zero third-party media server dependencies.
         </p>
 
-        <div className="mb-8">
-          <SectionLabel>Choose Testing Console</SectionLabel>
+        {/* CTA Buttons */}
+        <div className="flex flex-wrap gap-4 justify-center mb-16">
+          <Link to="/login">
+            <Button variant="primary" className="px-8 py-3 text-base">
+              Agent Console
+            </Button>
+          </Link>
+          <Link to="/join">
+            <Button variant="secondary" className="px-8 py-3 text-base">
+              Join as Customer
+            </Button>
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+        {/* How It Works */}
+        <div className="mb-20">
+          <SectionLabel className="mb-8">How It Works</SectionLabel>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            {STEPS.map((step, i) => (
+              <Card key={i} hoverEffect className="p-6 bg-white relative overflow-hidden">
+                <div className="absolute top-4 right-4 font-mono text-[40px] font-bold text-[var(--accent)]/10 leading-none select-none">
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] mb-4">
+                  {step.icon}
+                </div>
+                <h3 className="font-display text-lg font-medium mb-2">
+                  {step.title}
+                </h3>
+                <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
+                  {step.desc}
+                </p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Role Entry Cards */}
+        <SectionLabel className="mb-8">Get Started</SectionLabel>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left mb-16">
           {/* Agent Login Entry */}
           <Card
             accentTop
@@ -179,84 +229,56 @@ function WelcomeSelector() {
                 Customer Client
               </h3>
               <p className="text-sm text-[var(--muted-foreground)] mb-6">
-                Need help? Raise a support ticket and connect instantly with an
-                agent via video call.
+                Have an invite link from your support agent? Join the video
+                call directly from your browser.
               </p>
             </div>
-
-            {!showRequestForm ? (
-              <div className="flex flex-col gap-3">
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  onClick={() => setShowRequestForm(true)}
-                >
-                  Raise Support Request
-                </Button>
-                <Link to="/join" className="w-full">
-                  <Button variant="secondary" className="w-full">
-                    I have an Invite Link
-                  </Button>
-                </Link>
-              </div>
-            ) : requestSubmitted ? (
-              <div className="bg-[var(--muted)] border border-[var(--border)] rounded-lg p-4 text-center">
-                <p className="text-sm text-[var(--foreground)] font-medium mb-1">
-                  Request Sent!
-                </p>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  An agent will review your request and send an invite link
-                  shortly.
-                </p>
-              </div>
-            ) : (
-              <form
-                onSubmit={handleCustomerRequest}
-                className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2"
-              >
-                <input
-                  type="text"
-                  placeholder="Describe your issue..."
-                  required
-                  className="w-full bg-white border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setShowRequestForm(false)}
-                  >
-                    Back
-                  </Button>
-                  <Button type="submit" variant="primary" className="flex-1">
-                    Submit
-                  </Button>
-                </div>
-              </form>
-            )}
+            <Link to="/join" className="w-full">
+              <Button variant="secondary" className="w-full">
+                Join Support Call
+              </Button>
+            </Link>
           </Card>
 
-          {/* Admin Supervisor Lobbies */}
+          {/* Admin Supervisor */}
           <Card
             hoverEffect
             className="p-6 flex flex-col justify-between bg-white"
           >
             <div>
               <h3 className="font-display text-xl font-medium mb-2">
-                Supervisor Admin
+                Supervisor
               </h3>
               <p className="text-sm text-[var(--muted-foreground)] mb-6">
                 Oversee concurrent support streams, inspect metrics, and
                 force-terminate calls.
               </p>
             </div>
-            <Link to="/admin" className="w-full">
+            <Link to="/login" className="w-full">
               <Button variant="secondary" className="w-full">
                 Supervisor Monitor
               </Button>
             </Link>
           </Card>
+        </div>
+
+        {/* Tech Stack */}
+        <SectionLabel className="mb-6">Built With</SectionLabel>
+        <div className="flex flex-wrap gap-3 justify-center">
+          {TECH_STACK.map((tech) => (
+            <div
+              key={tech.name}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-white hover:border-[var(--accent)]/40 transition-colors"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <span className="font-mono text-xs font-semibold text-[var(--accent)]">
+                {tech.name}
+              </span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">
+                {tech.desc}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -264,7 +286,7 @@ function WelcomeSelector() {
       <footer className="border-t border-[var(--border)] bg-[var(--muted)] py-6">
         <div className="max-w-7xl mx-auto px-6 text-center md:flex md:justify-between md:items-center">
           <p className="text-xs text-[var(--muted-foreground)]">
-            Aura self-hosted WebRTC SFU Gateway. Built for compliance.
+            Nexus — Self-hosted WebRTC SFU Gateway. Built for compliance.
           </p>
           <div className="flex gap-6 justify-center text-xs text-[var(--muted-foreground)] font-mono mt-4 md:mt-0">
             <span>DB: SUPABASE PG</span>
@@ -282,6 +304,7 @@ function App() {
     <>
       <div className="paper-overlay" />
       <div className="ambient-glow" />
+      <ToastContainer />
 
       <Routes>
         {/* Public Routes */}
@@ -315,7 +338,7 @@ function App() {
           }
         />
 
-        {/* Dynamic call room — replace history so back button goes to dashboard/home not back into call */}
+        {/* Dynamic call room */}
         <Route path="/call/:sessionId" element={<CallRoom />} />
 
         {/* Fallback */}

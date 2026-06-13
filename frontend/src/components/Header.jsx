@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { ConfirmDialog } from "./ui/";
 import { useNavigate, useLocation } from "react-router-dom";
 
 // Helper to decode JWT token
@@ -29,8 +30,12 @@ export default function Header() {
   const isAgent = role === "agent";
   const isSupervisor = role === "supervisor";
 
+  const [showSignOut, setShowSignOut] = useState(false);
+
   const handleSignOut = () => {
     localStorage.removeItem("agent_token");
+    localStorage.removeItem("agent_role");
+    localStorage.removeItem("agent_name");
     navigate("/login", { replace: true });
   };
 
@@ -52,7 +57,7 @@ export default function Header() {
             }}
             onClick={() => navigate(isSupervisor ? "/admin" : "/dashboard")}
           >
-            AURA<span className="text-[var(--accent)]">.</span>
+            NEXUS<span className="text-[var(--accent)]">.</span>
           </span>
           <span className="font-mono text-[9px] tracking-wider bg-[var(--muted)] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--muted-foreground)] uppercase">
             {role || "Public"}
@@ -87,7 +92,7 @@ export default function Header() {
               </a>
             )}
             <button
-              onClick={handleSignOut}
+              onClick={() => setShowSignOut(true)}
               className="text-base font-semibold hover:text-[var(--accent)] transition-colors bg-transparent border-0 cursor-pointer p-0"
               style={{
                 fontFamily: '"Source Sans 3", system-ui, sans-serif',
@@ -100,6 +105,17 @@ export default function Header() {
           </nav>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showSignOut}
+        title="Sign Out"
+        message="Are you sure you want to sign out? You'll need to log in again to access the dashboard."
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleSignOut}
+        onCancel={() => setShowSignOut(false)}
+      />
     </header>
   );
 }
