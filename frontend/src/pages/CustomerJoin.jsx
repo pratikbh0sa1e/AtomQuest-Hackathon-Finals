@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { Button, Card, Input, SectionLabel } from "../components/ui/";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
 function decodeJwtPayload(token) {
   try {
@@ -98,7 +98,7 @@ export default function CustomerJoin() {
         return;
       }
 
-      navigate(`/call/${sessionId}`);
+      navigate(`/call/${sessionId}`, { replace: true });
     } catch {
       setError({
         type: "generic",
