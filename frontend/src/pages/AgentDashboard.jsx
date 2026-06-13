@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, SectionLabel } from "../components/ui/";
+import { Button, Card, SectionLabel, SkeletonSessionCard, SkeletonRow } from "../components/ui/";
 import Header from "../components/Header";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
+
+
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -165,7 +167,7 @@ function SessionCard({ session, onJoin }) {
                 color: "var(--foreground)",
               }}
             >
-              {session.participant_count ?? 0}
+              {session.participants?.length ?? 0}
             </p>
             <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
               participants
@@ -194,14 +196,14 @@ function SessionCard({ session, onJoin }) {
 // Session History Table Row
 // ──────────────────────────────────────────────────────────────────────────────
 
-function HistoryRow({ session, isLast }) {
+function HistoryRow({ session, isLast, onToggleChat, isExpanded }) {
   return (
     <tr
       className={!isLast ? "border-b border-[var(--border)]" : ""}
       style={{ borderColor: "var(--border)" }}
     >
       <td
-        className="py-3 pr-4 text-xs"
+        className="py-3 pr-4 pl-4 text-xs"
         style={{
           fontFamily: '"IBM Plex Mono", monospace',
           color: "var(--muted-foreground)",
@@ -217,7 +219,7 @@ function HistoryRow({ session, isLast }) {
             color: "var(--foreground)",
           }}
         >
-          {session.id}
+          {session.id.slice(0, 8)}…
         </code>
       </td>
       <td className="py-3 pr-4">
@@ -228,7 +230,7 @@ function HistoryRow({ session, isLast }) {
             color: "var(--foreground)",
           }}
         >
-          {session.participant_count ?? 0}
+          {session.participants?.length ?? 0}
         </span>
       </td>
       <td className="py-3 pr-4">
@@ -240,8 +242,16 @@ function HistoryRow({ session, isLast }) {
           <span className="text-xs text-[var(--muted-foreground)]">—</span>
         )}
       </td>
-      <td className="py-3">
+      <td className="py-3 pr-4">
         <StatusBadge status={session.status} />
+      </td>
+      <td className="py-3">
+        <button
+          onClick={onToggleChat}
+          className="text-[10px] font-mono uppercase tracking-wider text-[var(--accent)] hover:underline cursor-pointer bg-transparent border-0 p-0"
+        >
+          {isExpanded ? "Hide" : "Chat Log"}
+        </button>
       </td>
     </tr>
   );
@@ -268,6 +278,10 @@ export default function AgentDashboard() {
   const [creatingSession, setCreatingSession] = useState(false);
   const [newSessionError, setNewSessionError] = useState("");
   const [inviteCard, setInviteCard] = useState(null); // { inviteUrl }
+  const [loading, setLoading] = useState(true);
+  const [expandedChat, setExpandedChat] = useState(null); // sessionId
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const intervalRef = useRef(null);
 
@@ -293,6 +307,8 @@ export default function AgentDashboard() {
       setFetchError("");
     } catch {
       setFetchError("Unable to reach the server.");
+    } finally {
+      setLoading(false);
     }
   }, [token, navigate]);
 
@@ -339,6 +355,32 @@ export default function AgentDashboard() {
   const handleJoinCall = useCallback((sessionId) => {
     navigate(`/call/${sessionId}`);
   }, [navigate]);
+
+  // ── Fetch chat messages for a session ──────────────────────────────────────
+  const handleToggleChat = async (sessionId) => {
+    if (expandedChat === sessionId) {
+      setExpandedChat(null);
+      setChatMessages([]);
+      return;
+    }
+    setExpandedChat(sessionId);
+    setChatLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatMessages(Array.isArray(data) ? data : []);
+      } else {
+        setChatMessages([]);
+      }
+    } catch {
+      setChatMessages([]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   // ── Split sessions into active vs history ─────────────────────────────────
   const activeSessions = sessions.filter((s) => s.status !== "ended");
@@ -412,7 +454,18 @@ export default function AgentDashboard() {
           </p>
         )}
 
-        {activeSessions.length === 0 ? (
+        {loading ? (
+          <div
+            className="grid gap-3 mb-10"
+            style={{
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(min(100%, 360px), 1fr))",
+            }}
+          >
+            <SkeletonSessionCard />
+            <SkeletonSessionCard />
+          </div>
+        ) : activeSessions.length === 0 ? (
           <Card className="p-8 text-center mb-10">
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
               No active sessions at the moment. Create one using the{" "}
@@ -460,10 +513,11 @@ export default function AgentDashboard() {
                     "Participants",
                     "Ended",
                     "Status",
-                  ].map((col) => (
+                    "",
+                  ].map((col, i) => (
                     <th
-                      key={col}
-                      className="py-3 pr-4 text-left text-xs font-medium uppercase tracking-wider"
+                      key={col || `action-${i}`}
+                      className={`py-3 pr-4 text-left text-xs font-medium uppercase tracking-wider ${i === 0 ? "pl-4" : ""}`}
                       style={{
                         color: "var(--muted-foreground)",
                         fontFamily: '"IBM Plex Mono", monospace',
@@ -475,13 +529,52 @@ export default function AgentDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {historySessions.map((session, idx) => (
-                  <HistoryRow
-                    key={session.id}
-                    session={session}
-                    isLast={idx === historySessions.length - 1}
-                  />
-                ))}
+                {loading ? (
+                  <>
+                    <SkeletonRow cols={6} />
+                    <SkeletonRow cols={6} />
+                    <SkeletonRow cols={6} />
+                  </>
+                ) : (
+                  historySessions.map((session, idx) => (
+                    <React.Fragment key={session.id}>
+                      <HistoryRow
+                        session={session}
+                        isLast={idx === historySessions.length - 1 && expandedChat !== session.id}
+                        onToggleChat={() => handleToggleChat(session.id)}
+                        isExpanded={expandedChat === session.id}
+                      />
+                      {expandedChat === session.id && (
+                        <tr>
+                          <td colSpan={6} className="px-4 pb-4 bg-[var(--muted)]">
+                            <div className="rounded-lg border border-[var(--border)] bg-white p-4 max-h-64 overflow-y-auto custom-scrollbar">
+                              <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-3">Chat Transcript</p>
+                              {chatLoading ? (
+                                <p className="text-sm text-[var(--muted-foreground)]">Loading messages...</p>
+                              ) : chatMessages.length === 0 ? (
+                                <p className="text-sm text-[var(--muted-foreground)] italic">No messages in this session.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {chatMessages.map((msg) => (
+                                    <div key={msg.id} className="flex gap-2 text-sm">
+                                      <span className="font-mono text-[10px] font-semibold text-[var(--accent)] uppercase shrink-0 pt-0.5">
+                                        {msg.sender_name || msg.sender_role}
+                                      </span>
+                                      <span className="text-[var(--foreground)]">{msg.content}</span>
+                                      <span className="text-[10px] text-[var(--muted-foreground)] shrink-0 pt-0.5 ml-auto">
+                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))
+                )}
               </tbody>
             </table>
           </Card>

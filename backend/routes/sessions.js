@@ -263,4 +263,34 @@ router.patch("/:id/status", async (req, res) => {
   }
 });
 
+/**
+ * GET /sessions/:id/messages
+ * Agent only. Returns all messages for a session ordered by created_at ASC.
+ */
+router.get("/:id/messages", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: messages, error } = await db
+      .from("messages")
+      .select("*")
+      .eq("session_id", id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("[GET /sessions/:id/messages] DB query error:", error);
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch messages", code: "FETCH_FAILED" });
+    }
+
+    return res.json(messages ?? []);
+  } catch (err) {
+    console.error("[GET /sessions/:id/messages] Unexpected error:", err);
+    return res
+      .status(500)
+      .json({ error: "Internal server error", code: "INTERNAL_ERROR" });
+  }
+});
+
 export default router;
