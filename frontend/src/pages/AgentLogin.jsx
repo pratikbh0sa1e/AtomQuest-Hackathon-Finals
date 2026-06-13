@@ -2,23 +2,29 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button, Card, Input, SectionLabel } from "../components/ui/";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
-// Demo accounts shown on the login page
+// Only show demo autofill in local/demo environments.
+// Set VITE_SHOW_DEMO=true in .env to enable. NEVER enable in production.
+const SHOW_DEMO = import.meta.env.VITE_SHOW_DEMO === "true";
+
+// Demo accounts — shown only when VITE_SHOW_DEMO=true
 const DEMO_ACCOUNTS = [
   {
     label: "Support Agent",
+    role: "agent",
     username: "demo_agent",
     password: "Demo@1234",
     description: "Create sessions, invite customers, record calls",
-    color: "var(--accent)",
+    accentColor: "var(--accent)",
   },
   {
     label: "Supervisor",
+    role: "supervisor",
     username: "supervisor",
     password: "Super@1234",
-    description: "Monitor live sessions, force-end calls",
-    color: "var(--muted-foreground)",
+    description: "Monitor live sessions & force-end calls",
+    accentColor: "#a78bfa",
   },
 ];
 
@@ -77,6 +83,9 @@ export default function AgentLogin() {
 
       const data = await res.json();
 
+      console.log("[AgentLogin] Response status:", res.status);
+      console.log("[AgentLogin] Response data:", data);
+
       if (res.status === 400) {
         setServerError(data.error || "Invalid input.");
         return;
@@ -90,12 +99,23 @@ export default function AgentLogin() {
         return;
       }
 
+      console.log("[AgentLogin] Login successful, role:", data.role);
+
       localStorage.setItem("agent_token", data.token);
-      if (data.role === "admin") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      localStorage.setItem("agent_role", data.role);
+      localStorage.setItem("agent_name", data.name || username);
+
+      console.log("[AgentLogin] Stored in localStorage:", {
+        token: !!data.token,
+        role: data.role,
+        name: data.name,
+      });
+
+      // Route based on role returned from DB — supervisor → /admin, agent → /dashboard
+      const redirectUrl = data.role === "supervisor" ? "/admin" : "/dashboard";
+      console.log("[AgentLogin] Redirecting to:", redirectUrl);
+
+      window.location.href = redirectUrl;
     } catch {
       setServerError(
         "Unable to reach the server. Please check your connection.",
@@ -135,39 +155,61 @@ export default function AgentLogin() {
           Sign in as an agent or supervisor
         </p>
 
-        {/* Demo account quick-fill buttons */}
-        <div className="mb-6">
-          <p className="text-xs font-mono uppercase tracking-widest text-[var(--muted-foreground)] mb-3 text-center">
-            Demo Accounts — click to fill
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.username}
-                type="button"
-                onClick={() => fillDemo(account)}
-                className="p-3 rounded-lg border text-left transition-all hover:border-[var(--accent)] hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-                style={{
-                  background: "var(--card)",
-                  borderColor: "var(--border)",
-                }}
-              >
-                <div
-                  className="text-xs font-semibold mb-0.5"
+        {/* Demo account quick-fill buttons — only rendered in demo/local mode */}
+        {SHOW_DEMO && (
+          <div className="mb-6">
+            <p className="text-xs font-mono uppercase tracking-widest text-[var(--muted-foreground)] mb-3 text-center">
+              Demo Accounts — click to autofill
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.username}
+                  type="button"
+                  onClick={() => fillDemo(account)}
+                  className="p-3 rounded-lg border text-left transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[var(--ring)] group"
                   style={{
-                    color: account.color,
-                    fontFamily: '"IBM Plex Mono", monospace',
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
                   }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.borderColor = account.accentColor)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.borderColor = "var(--border)")
+                  }
                 >
-                  {account.label}
-                </div>
-                <div className="text-[10px] text-[var(--muted-foreground)] leading-tight">
-                  {account.description}
-                </div>
-              </button>
-            ))}
+                  {/* Role label + badge */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span
+                      className="text-xs font-bold"
+                      style={{
+                        color: account.accentColor,
+                        fontFamily: '"IBM Plex Mono", monospace',
+                      }}
+                    >
+                      {account.label}
+                    </span>
+                    <span
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded uppercase tracking-wider"
+                      style={{
+                        background: account.accentColor + "22",
+                        color: account.accentColor,
+                        border: `1px solid ${account.accentColor}44`,
+                      }}
+                    >
+                      {account.role}
+                    </span>
+                  </div>
+                  {/* Description */}
+                  <div className="text-[10px] text-[var(--muted-foreground)] leading-tight">
+                    {account.description}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <SectionLabel className="mb-5">Or sign in manually</SectionLabel>
 
@@ -271,14 +313,6 @@ export default function AgentLogin() {
             </div>
           </form>
         </Card>
-
-        {/* Credentials hint */}
-        <div className="mt-4 p-3 rounded-lg border border-dashed border-[var(--border)] text-center">
-          <p className="text-[10px] font-mono text-[var(--muted-foreground)]">
-            AGENT: demo_agent / Demo@1234 &nbsp;|&nbsp; SUPERVISOR: supervisor /
-            Super@1234
-          </p>
-        </div>
       </div>
     </div>
   );
