@@ -775,10 +775,10 @@ export default function CallRoom() {
 
         {/* Mobile bottom drawer */}
         <div
-          className={`md:hidden absolute inset-x-0 bottom-0 z-30 flex flex-col transition-transform duration-300 ease-in-out ${
-            isChatOpen ? "translate-y-0" : "translate-y-full"
+          className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl ${
+            isChatOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
           }`}
-          style={{ height: "65%", background: "#111" }}
+          style={{ height: "65vh", background: "#111" }}
         >
           {/* Drawer handle / close strip */}
           <button

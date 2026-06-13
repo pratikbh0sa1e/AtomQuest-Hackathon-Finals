@@ -103,7 +103,7 @@ export default function ControlBar({
 
         {/* Chat Toggle — mobile only */}
         <button
-          onPointerUp={handleChatToggle}
+          onClick={handleChatToggle}
           className={`md:hidden w-12 h-12 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
             isChatOpen
               ? "bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)]"

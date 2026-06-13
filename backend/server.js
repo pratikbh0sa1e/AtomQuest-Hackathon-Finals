@@ -159,6 +159,7 @@ io.on("connection", (socket) => {
   // Attach verified user identity to the socket for downstream handlers
   socket.data.user = {
     role: payload.role,
+    name: payload.name,
     id: payload.sub,
     sessionId: payload.sessionId ?? null,
   };

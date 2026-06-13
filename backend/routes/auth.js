@@ -241,6 +241,7 @@ router.post("/join", async (req, res) => {
       {
         sub: participant.id,
         role: "customer",
+        name: finalName,
         sessionId: session.id,
         reconnectToken,
       },

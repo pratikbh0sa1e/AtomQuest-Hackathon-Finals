@@ -51,15 +51,18 @@ export function registerSignalingHandlers(io, socket) {
 
   // Reconnect check: if this participant has an active disconnect timer, verify token
   if (participantId && disconnectTimers.has(participantId)) {
-    const reconnectToken = socket.handshake.auth?.reconnectToken;
-    const record = reconnectTokens.get(participantId);
+    // Customers use reconnectToken; Agents just use their JWT auth.
+    if (socket.data.user?.role === "customer") {
+      const reconnectToken = socket.handshake.auth?.reconnectToken;
+      const record = reconnectTokens.get(participantId);
 
-    if (!record || record.token !== reconnectToken) {
-      console.warn(
-        `[signaling] Reconnect token mismatch for ${participantId}. Rejecting socket connection.`,
-      );
-      socket.disconnect(true);
-      return;
+      if (!record || record.token !== reconnectToken) {
+        console.warn(
+          `[signaling] Reconnect token mismatch for ${participantId}. Rejecting socket connection.`,
+        );
+        socket.disconnect(true);
+        return;
+      }
     }
 
     // Clear timer to prevent departure emit

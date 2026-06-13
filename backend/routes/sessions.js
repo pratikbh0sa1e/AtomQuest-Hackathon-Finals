@@ -63,7 +63,7 @@ router.get("/", async (req, res) => {
   try {
     const { data: sessions, error } = await db
       .from("sessions")
-      .select("*, participants(*)")
+      .select("*, participants(*), recordings(*)")
       .order("created_at", { ascending: false })
       .limit(1000);
 

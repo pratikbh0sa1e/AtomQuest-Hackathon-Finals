@@ -196,7 +196,7 @@ function SessionCard({ session, onJoin }) {
 // Session History Table Row
 // ──────────────────────────────────────────────────────────────────────────────
 
-function HistoryRow({ session, isLast, onToggleChat, isExpanded }) {
+function HistoryRow({ session, isLast, onToggleChat, isExpanded, onPlayRecording }) {
   return (
     <tr
       className={!isLast ? "border-b border-[var(--border)]" : ""}
@@ -245,13 +245,22 @@ function HistoryRow({ session, isLast, onToggleChat, isExpanded }) {
       <td className="py-3 pr-4">
         <StatusBadge status={session.status} />
       </td>
-      <td className="py-3">
+      <td className="py-3 flex gap-3 pr-4">
         <button
           onClick={onToggleChat}
           className="text-[10px] font-mono uppercase tracking-wider text-[var(--accent)] hover:underline cursor-pointer bg-transparent border-0 p-0"
         >
           {isExpanded ? "Hide" : "Chat Log"}
         </button>
+        {session.recordings && session.recordings.length > 0 && session.recordings.some(r => r.status === 'ready') && (
+          <button
+            onClick={() => onPlayRecording(session.id, session.recordings.find(r => r.status === 'ready').id)}
+            className="text-[10px] font-mono uppercase tracking-wider text-red-500 hover:text-red-400 hover:underline cursor-pointer bg-transparent border-0 p-0 flex items-center gap-1"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+            Play
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -282,6 +291,8 @@ export default function AgentDashboard() {
   const [expandedChat, setExpandedChat] = useState(null); // sessionId
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const intervalRef = useRef(null);
 
@@ -382,9 +393,27 @@ export default function AgentDashboard() {
     }
   };
 
+  const handlePlayRecording = async (sessionId, recordingId) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/sessions/${sessionId}/recordings/${recordingId}/url`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        window.open(url, "_blank");
+      } else {
+        alert("Recording is not ready or failed to load.");
+      }
+    } catch (err) {
+      alert("Error fetching recording.");
+    }
+  };
+
   // ── Split sessions into active vs history ─────────────────────────────────
   const activeSessions = sessions.filter((s) => s.status !== "ended");
   const historySessions = sessions.filter((s) => s.status === "ended");
+  const totalPages = Math.ceil(historySessions.length / itemsPerPage);
+  const paginatedHistory = historySessions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // ── Render guard: don't paint anything if there's no token ────────────────
   if (!token) return null;
@@ -500,8 +529,9 @@ export default function AgentDashboard() {
             </p>
           </Card>
         ) : (
-          <Card className="overflow-x-auto">
-            <table className="w-full text-sm" aria-label="Session history">
+          <div className="space-y-4 px-1 sm:px-0">
+            <Card className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[600px]" aria-label="Session history">
               <thead>
                 <tr
                   className="border-b"
@@ -536,12 +566,13 @@ export default function AgentDashboard() {
                     <SkeletonRow cols={6} />
                   </>
                 ) : (
-                  historySessions.map((session, idx) => (
+                  paginatedHistory.map((session, idx) => (
                     <React.Fragment key={session.id}>
                       <HistoryRow
                         session={session}
-                        isLast={idx === historySessions.length - 1 && expandedChat !== session.id}
+                        isLast={idx === paginatedHistory.length - 1 && expandedChat !== session.id}
                         onToggleChat={() => handleToggleChat(session.id)}
+                        onPlayRecording={handlePlayRecording}
                         isExpanded={expandedChat === session.id}
                       />
                       {expandedChat === session.id && (
@@ -577,7 +608,32 @@ export default function AgentDashboard() {
                 )}
               </tbody>
             </table>
-          </Card>
+            </Card>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-4 py-2">
+                <Button 
+                  variant="secondary" 
+                  className="px-3 py-1.5 min-h-0 text-xs"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-mono text-[var(--muted-foreground)]">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="secondary" 
+                  className="px-3 py-1.5 min-h-0 text-xs"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </main>
     </div>
