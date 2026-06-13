@@ -7,6 +7,8 @@ import {
   consume,
   registerTransport,
   sessionRouters,
+  closePeer,
+  peerTransports,
 } from "../mediasoup-worker.js";
 import { db } from "../supabase.js";
 import { reconnectTokens } from "../routes/auth.js";
@@ -53,7 +55,9 @@ export function registerSignalingHandlers(io, socket) {
     const record = reconnectTokens.get(participantId);
 
     if (!record || record.token !== reconnectToken) {
-      console.warn(`[signaling] Reconnect token mismatch for ${participantId}. Rejecting socket connection.`);
+      console.warn(
+        `[signaling] Reconnect token mismatch for ${participantId}. Rejecting socket connection.`,
+      );
       socket.disconnect(true);
       return;
     }
@@ -63,7 +67,9 @@ export function registerSignalingHandlers(io, socket) {
     clearTimeout(timer);
     disconnectTimers.delete(participantId);
 
-    console.log(`[signaling] Participant ${participantId} reconnected successfully within window.`);
+    console.log(
+      `[signaling] Participant ${participantId} reconnected successfully within window.`,
+    );
 
     // Restore connection status in DB
     db.from("participants")
@@ -71,7 +77,10 @@ export function registerSignalingHandlers(io, socket) {
       .eq("id", participantId)
       .then(({ error }) => {
         if (error) {
-          console.error("[signaling] Failed to restore connection_status:", error);
+          console.error(
+            "[signaling] Failed to restore connection_status:",
+            error,
+          );
         }
       });
   }
@@ -81,7 +90,11 @@ export function registerSignalingHandlers(io, socket) {
   // Add Agent socket to 'admin' room and emit current sessions summary.
   // ---------------------------------------------------------------------------
   socket.on("admin:join", async () => {
-    if (socket.data.user?.role !== "admin") return;
+    if (
+      socket.data.user?.role !== "agent" &&
+      socket.data.user?.role !== "supervisor"
+    )
+      return;
     await socket.join("admin");
     const sessions = Array.from(activeSessions.values()).map((s) => ({
       id: s.id,
@@ -151,7 +164,9 @@ export function registerSignalingHandlers(io, socket) {
             invite_token: session?.invite_token || "",
             status: "active",
             participants_count: 0,
-            created_at_time: session ? new Date(session.created_at).getTime() : Date.now(),
+            created_at_time: session
+              ? new Date(session.created_at).getTime()
+              : Date.now(),
             participants: new Map(),
           });
         }
@@ -159,11 +174,13 @@ export function registerSignalingHandlers(io, socket) {
         const summary = activeSessions.get(sessionId);
         if (summary) {
           summary.participants.set(socket.data.user.id || socket.id, {
-            name: socket.data.user.name || (socket.data.user.role === "agent" ? "Agent" : "Customer"),
+            name:
+              socket.data.user.name ||
+              (socket.data.user.role === "agent" ? "Agent" : "Customer"),
             role: socket.data.user.role,
           });
           summary.participants_count = summary.participants.size;
-          
+
           if (socket.data.user.role === "agent") {
             summary.agent = socket.data.user.name || "Agent";
           } else if (socket.data.user.role === "customer") {
@@ -177,9 +194,62 @@ export function registerSignalingHandlers(io, socket) {
       // Create (or retrieve existing) mediasoup Router for this session
       const router = await createRouter(sessionId);
 
-      // Emit session:joined with router RTP capabilities
+      // Auto-activate session in DB when first participant joins
+      await db
+        .from("sessions")
+        .update({ status: "active" })
+        .eq("id", sessionId)
+        .eq("status", "pending");
+
+      // Fetch existing chat history and participants for this session
+      const [{ data: chatHistory }, { data: participants }] = await Promise.all(
+        [
+          db
+            .from("messages")
+            .select("*")
+            .eq("session_id", sessionId)
+            .order("created_at", { ascending: true }),
+          db
+            .from("participants")
+            .select("*")
+            .eq("session_id", sessionId)
+            .is("left_at", null),
+        ],
+      );
+
+      // Notify ALL existing peers in the room about this new participant's producers
+      // so they can consume them
+      const socketsInRoom = await io.in(room).fetchSockets();
+      for (const s of socketsInRoom) {
+        if (s.id === socket.id) continue;
+        // Tell the new joiner about existing producers in the room
+        s.emit("peer-joined", {
+          socketId: socket.id,
+          role: socket.data.user?.role,
+        });
+      }
+
+      // Collect existing producers from all OTHER peers already in this session
+      const existingProducers = [];
+      const participantMap = peerTransports.get(sessionId);
+      if (participantMap) {
+        for (const [, peer] of participantMap) {
+          if (peer.producers) {
+            for (const p of peer.producers) {
+              if (!p.closed) {
+                existingProducers.push({ producerId: p.id, kind: p.kind });
+              }
+            }
+          }
+        }
+      }
+
+      // Emit session:joined with router RTP capabilities + history + existing producers
       socket.emit("session:joined", {
         routerRtpCapabilities: router.rtpCapabilities,
+        participants: participants ?? [],
+        messages: chatHistory ?? [],
+        existingProducers,
       });
 
       if (typeof ack === "function") {
@@ -327,12 +397,17 @@ export function registerSignalingHandlers(io, socket) {
     "transport:consume",
     async ({ transportId, producerId, rtpCapabilities } = {}, ack) => {
       try {
+        console.log(
+          `[consume] Request from ${socket.data.user?.role || "unknown"}: transportId=${transportId}, producerId=${producerId}`,
+        );
+
         if (!transportId || !producerId || !rtpCapabilities) {
           const err = {
             error: true,
             message:
               "transportId, producerId, and rtpCapabilities are required",
           };
+          console.error("[consume] Missing required params:", err);
           if (typeof ack === "function") ack(err);
           return;
         }
@@ -343,11 +418,18 @@ export function registerSignalingHandlers(io, socket) {
           rtpCapabilities,
         );
 
+        console.log(
+          `[consume] Success: consumerId=${consumerParams.id}, kind=${consumerParams.kind}`,
+        );
+
         if (typeof ack === "function") {
           ack({ error: false, ...consumerParams });
         }
       } catch (err) {
-        console.error("[signaling] transport:consume error:", err);
+        console.error(
+          "[signaling] transport:consume error:",
+          err.message || err,
+        );
         if (typeof ack === "function") {
           ack({ error: true, message: err.message });
         }
@@ -455,14 +537,14 @@ export function registerSignalingHandlers(io, socket) {
         return;
       }
 
-      // Build broadcast payload
+      // Build broadcast payload with consistent field names
       const payload = {
         id: message.id,
-        sessionId,
-        senderRole,
-        senderName,
+        session_id: sessionId,
+        sender_name: senderName,
+        sender_role: senderRole,
         content,
-        createdAt: message.created_at,
+        created_at: message.created_at,
       };
 
       // Broadcast to all other participants in the session room
@@ -488,8 +570,12 @@ export function registerSignalingHandlers(io, socket) {
   // ---------------------------------------------------------------------------
   socket.on("session:end", async ({ sessionId } = {}, ack) => {
     try {
-      if (socket.data.user?.role !== "agent") {
-        if (typeof ack === "function") ack({ error: true, message: "Forbidden" });
+      if (
+        socket.data.user?.role !== "agent" &&
+        socket.data.user?.role !== "supervisor"
+      ) {
+        if (typeof ack === "function")
+          ack({ error: true, message: "Forbidden" });
         return;
       }
 
@@ -510,7 +596,10 @@ export function registerSignalingHandlers(io, socket) {
 
       // Update session status in DB
       const now = new Date().toISOString();
-      await db.from("sessions").update({ status: "ended", ended_at: now }).eq("id", sessionId);
+      await db
+        .from("sessions")
+        .update({ status: "ended", ended_at: now })
+        .eq("id", sessionId);
 
       // Update participants
       const { data: participants } = await db
@@ -584,7 +673,8 @@ export function registerSignalingHandlers(io, socket) {
             activeSessions.delete(sessionId);
           } else {
             if (socket.data.user?.role === "agent") summary.agent = "None";
-            if (socket.data.user?.role === "customer") summary.customer = "Connecting...";
+            if (socket.data.user?.role === "customer")
+              summary.customer = "Connecting...";
           }
           await broadcastSessionsUpdate(io);
         }
@@ -594,11 +684,15 @@ export function registerSignalingHandlers(io, socket) {
           io.to(room).emit("participant-left", { participantId });
         }
 
-        console.log(`[signaling] Reconnect window expired for participant ${participantId}. Cleaned up resources.`);
+        console.log(
+          `[signaling] Reconnect window expired for participant ${participantId}. Cleaned up resources.`,
+        );
       }, 30000);
 
       disconnectTimers.set(participantId, timeoutId);
-      console.log(`[signaling] Participant ${participantId} disconnected. Reconnect window timer started.`);
+      console.log(
+        `[signaling] Participant ${participantId} disconnected. Reconnect window timer started.`,
+      );
     } catch (err) {
       console.error("[signaling] disconnect handler error:", err);
     }
