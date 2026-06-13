@@ -37,10 +37,12 @@ export default function ControlBar({
   isMuted,
   isVideoOff,
   isRecording,
-  recordingStatus, // 'none' | 'recording' | 'processing' | 'ready' | 'failed'
+  recordingStatus,
+  isChatOpen,
   onToggleMute,
   onToggleVideo,
   onToggleRecording,
+  onToggleChat,
   onLeave,
   onEndSession,
   userRole
@@ -49,11 +51,11 @@ export default function ControlBar({
 
   return (
     <div 
-      className="flex justify-between items-center px-6 py-4 bg-[#121212] border-t border-[var(--border)] z-10 w-full"
+      className="flex flex-col sm:flex-row justify-between items-center gap-4 px-6 py-3 sm:py-4 bg-[#121212] border-t border-[var(--border)] z-10 w-full"
       style={{ borderColor: "rgba(232, 228, 223, 0.15)" }}
     >
       {/* Left section: Recording status for agent */}
-      <div className="flex items-center min-w-[120px]">
+      <div className="flex items-center justify-center sm:justify-start min-w-0 sm:min-w-[120px] h-4 sm:h-auto">
         {isAgent && recordingStatus !== 'none' && (
           <span className="font-mono text-xs text-neutral-400 flex items-center gap-2">
             <span className={`w-2.5 h-2.5 rounded-full ${recordingStatus === 'recording' ? 'bg-red-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
@@ -84,6 +86,22 @@ export default function ControlBar({
           {isVideoOff ? <VideoOffIcon /> : <VideoIcon />}
         </button>
 
+        {/* Chat Toggle — mobile only */}
+        <button
+          onClick={onToggleChat}
+          className={`md:hidden w-12 h-12 rounded-full border flex items-center justify-center transition-all cursor-pointer touch-manipulation ${
+            isChatOpen
+              ? "bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)]"
+              : "bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800"
+          }`}
+          style={{ minHeight: "44px" }}
+          title="Toggle Chat"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+          </svg>
+        </button>
+
         {/* Start/Stop Recording (Agent Only) */}
         {isAgent && (
           <button
@@ -103,12 +121,12 @@ export default function ControlBar({
       </div>
 
       {/* Right section: Disconnect/End actions */}
-      <div className="flex gap-2 min-w-[120px] justify-end">
+      <div className="flex gap-2 min-w-0 sm:min-w-[120px] justify-center sm:justify-end w-full sm:w-auto">
         {isAgent ? (
           <Button
             onClick={onEndSession}
             variant="ghost"
-            className="text-red-500 bg-red-500/10 border border-red-500/30 hover:bg-red-500 hover:text-white"
+            className="text-red-500 bg-red-500/10 border border-red-500/30 hover:bg-red-500 hover:text-white w-full sm:w-auto"
             style={{ minHeight: "44px" }}
           >
             End Session
@@ -117,7 +135,7 @@ export default function ControlBar({
           <Button
             onClick={onLeave}
             variant="secondary"
-            className="border-neutral-700 text-neutral-300 hover:bg-neutral-900 hover:text-white"
+            className="border-neutral-700 text-neutral-300 hover:bg-neutral-900 hover:text-white w-full sm:w-auto"
             style={{ minHeight: "44px" }}
           >
             Leave
