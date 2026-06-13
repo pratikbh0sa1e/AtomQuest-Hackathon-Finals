@@ -5,8 +5,23 @@ import { db, adminDb } from "../supabase.js";
 
 const router = Router();
 
-// Configure multer memory storage
-const storage = multer.memoryStorage();
+import fs from "fs";
+import path from "path";
+
+// Ensure temp directory exists
+const tempDir = path.join(process.cwd(), "temp");
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
+
+// Configure multer disk storage for background processing
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, tempDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
+  },
+});
 const upload = multer({
   storage,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB size limit
@@ -41,10 +56,11 @@ router.post("/:id/files", (req, res) => {
       return res.status(400).json({ error: "No file uploaded", code: "MISSING_FILE" });
     }
 
-    const { mimetype, size, originalname, buffer } = req.file;
+    const { mimetype, size, originalname, path: localFilePath } = req.file;
 
     // Validate MIME type (Requirement 6.3)
     if (!ALLOWED_MIMES.includes(mimetype)) {
+      fs.unlinkSync(localFilePath);
       return res.status(415).json({
         error: "Only JPEG, PNG, and PDF files are allowed",
         code: "UNSUPPORTED_MEDIA_TYPE",
@@ -60,6 +76,7 @@ router.post("/:id/files", (req, res) => {
         .single();
 
       if (sessionErr || !session || session.status !== "active") {
+        fs.unlinkSync(localFilePath);
         return res.status(404).json({ error: "Active session not found", code: "SESSION_NOT_FOUND" });
       }
 
@@ -74,6 +91,7 @@ router.post("/:id/files", (req, res) => {
       }
 
       if (count >= 50) {
+        fs.unlinkSync(localFilePath);
         return res.status(422).json({
           error: "Per-session file upload limit of 50 files has been reached",
           code: "FILE_LIMIT_EXCEEDED",
@@ -82,85 +100,39 @@ router.post("/:id/files", (req, res) => {
 
       const fileId = crypto.randomUUID();
       const storagePath = `${sessionId}/${fileId}-${originalname}`;
-
-      // 2. Upload to Supabase Storage
-      const { error: uploadError } = await adminDb.storage
-        .from("files")
-        .upload(storagePath, buffer, {
-          contentType: mimetype,
-          upsert: true,
-        });
-
-      if (uploadError) {
-        console.error("[files] Storage upload error:", uploadError);
-        return res.status(500).json({ error: "Failed to upload file to storage", code: "STORAGE_UPLOAD_FAILED" });
-      }
-
-      // Get public URL
-      const { data: urlData } = adminDb.storage
-        .from("files")
-        .getPublicUrl(storagePath);
-      const fileUrl = urlData.publicUrl;
-
-      // 3. Insert into Database
       const senderName = req.user?.name || "Participant";
       const senderRole = req.user?.role || "customer";
 
-      const { data: sharedFile, error: dbError } = await db
-        .from("shared_files")
-        .insert({
-          id: fileId,
-          session_id: sessionId,
-          sender_name: senderName,
-          file_name: originalname,
-          mime_type: mimetype,
-          file_size: size,
-          file_url: fileUrl,
-          created_at: new Date(),
-        })
-        .select()
-        .single();
-
-      // Database rollback (Requirement 6.5)
-      if (dbError || !sharedFile) {
-        console.error("[files] DB insert error, rolling back storage:", dbError);
-        await adminDb.storage.from("files").remove([storagePath]);
-        return res.status(500).json({ error: "Failed to record shared file", code: "DATABASE_SAVE_FAILED" });
-      }
-
-      // 4. Emit to socket room and verify room presence (Requirement 6.5)
-      const io = req.app.get("io");
-      const room = `session:${sessionId}`;
-      
-      const socketsInRoom = io?.sockets.adapter.rooms.get(room);
-      if (!socketsInRoom || socketsInRoom.size === 0) {
-        console.warn(`[files] Socket broadcast failed (no clients in room ${room}). Rolling back.`);
-        // Rollback DB and Storage
-        await db.from("shared_files").delete().eq("id", fileId);
-        await adminDb.storage.from("files").remove([storagePath]);
-        return res.status(500).json({
-          error: "Failed to broadcast file share. No active participants in session room.",
-          code: "SOCKET_BROADCAST_FAILED",
-        });
-      }
-
-      // Broadcast file metadata to all peers in the call
-      io.to(room).emit("file-shared", {
-        id: sharedFile.id,
-        session_id: sharedFile.session_id,
-        sender_name: sharedFile.sender_name,
-        sender_role: senderRole,
-        file_name: sharedFile.file_name,
-        mime_type: sharedFile.mime_type,
-        file_size: `${(sharedFile.file_size / (1024 * 1024)).toFixed(2)} MB`,
-        file_url: sharedFile.file_url,
-        created_at: sharedFile.created_at,
+      // Insert job into database for background processing
+      const { error: jobError } = await adminDb.from("jobs").insert({
+        type: "FILE_UPLOAD",
+        payload: {
+          sessionId,
+          fileId,
+          originalname,
+          mimetype,
+          size,
+          senderName,
+          senderRole,
+          storagePath,
+          localFilePath
+        }
       });
 
-      return res.status(200).json(sharedFile);
+      if (jobError) {
+        throw jobError;
+      }
+
+      return res.status(202).json({ 
+        message: "File upload queued for processing", 
+        fileId 
+      });
 
     } catch (err) {
       console.error("[files] Upload exception:", err);
+      try {
+        fs.unlinkSync(localFilePath);
+      } catch (_) {}
       return res.status(500).json({ error: "Internal server error", code: "INTERNAL_ERROR" });
     }
   });

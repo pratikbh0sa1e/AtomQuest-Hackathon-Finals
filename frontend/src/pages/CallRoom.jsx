@@ -70,6 +70,12 @@ export default function CallRoom() {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Local producers references
   const localAudioProducer = useRef(null);
@@ -211,6 +217,18 @@ export default function CallRoom() {
       setRemoteName(role === "agent" ? "Agent" : "Customer");
     });
 
+    // Job status updates for agent
+    socket.on("job:status", (status) => {
+      if (userRoleRef.current === "agent") {
+        addSystemMessage(status.message);
+        if (status.status === "completed") {
+          showToast(status.message, "success");
+        } else if (status.status === "failed") {
+          showToast(status.message, "error");
+        }
+      }
+    });
+
     socket.on("participant-left", ({ participantId }) => {
       addSystemMessage("Participant left the room.");
       setRemoteName("Waiting...");
@@ -290,6 +308,7 @@ export default function CallRoom() {
     return () => {
       socket.off("session:joined");
       socket.off("peer-joined");
+      socket.off("job:status");
       socket.off("participant-left");
       socket.off("new-producer");
       socket.off("peer-media-state");
@@ -716,7 +735,14 @@ export default function CallRoom() {
   };
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] w-full overflow-hidden bg-[#1A1A1A] text-white">
+    <div className="h-screen w-screen bg-[#fafaf8] flex flex-col md:flex-row overflow-hidden relative">
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-md shadow-lg text-white font-medium transition-all animate-in fade-in slide-in-from-top-5 ${toast.type === "error" ? "bg-red-600" : "bg-[var(--accent)]"}`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Network Drop Notification */}
       {isReconnecting && (
         <div className="absolute inset-x-0 top-20 mx-auto max-w-sm bg-neutral-900 border border-red-500 rounded-lg p-4 z-50 text-center shadow-lg">

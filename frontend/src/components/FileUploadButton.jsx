@@ -62,7 +62,7 @@ export default function FileUploadButton({ sessionId, token, onUploadStart, onUp
         setUploading(false);
         setProgress(0);
         
-        if (xhr.status === 200) {
+        if (xhr.status === 200 || xhr.status === 202) {
           const response = JSON.parse(xhr.responseText);
           if (onUploadEnd) onUploadEnd(null, response);
         } else {

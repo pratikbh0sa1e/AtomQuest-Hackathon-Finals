@@ -243,10 +243,25 @@ export async function stopRecording(sessionId) {
         .update({ status: "processing", updated_at: new Date() })
         .eq("id", recordingId);
 
-      // Perform file upload asynchronously to not block connection thread
-      uploadRecordingAndFinalize(sessionId, recordingId, outputPath, sdpPath)
-        .then(resolve)
-        .catch(reject);
+      // Insert background job for finalization
+      const { error: jobError } = await adminDb.from("jobs").insert({
+        type: "RECORDING_FINALIZE",
+        payload: {
+          sessionId,
+          recordingId,
+          outputPath,
+          sdpPath,
+          aiEnabled: process.env.AI_SERVICE_ENABLED === "true"
+        }
+      });
+
+      if (jobError) {
+        console.error(`[recording] Failed to queue finalization job for ${recordingId}:`, jobError);
+        reject(jobError);
+      } else {
+        console.log(`[recording] Finalization job queued for ${recordingId}`);
+        resolve();
+      }
     });
 
     // Send SIGINT for clean exit (flushes buffers)

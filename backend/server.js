@@ -27,6 +27,7 @@ import adminRouter from "./routes/admin.js";
 import { incrementError } from "./metrics.js";
 import { onRecordingReady } from "./recording-manager.js";
 // import { triggerAnalysis } from "./ai-client.js";
+import { startJobWorker, stopJobWorker } from "./job-worker.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -186,6 +187,9 @@ const PORT = process.env.PORT || 3001;
 const HOST = "0.0.0.0"; // bind to all interfaces (LAN + localhost)
 httpServer.listen(PORT, HOST, async () => {
   console.log(`Server listening on ${isHttps ? "https" : "http"}://${HOST}:${PORT}`);
+  
+  // Start background jobs worker
+  startJobWorker(io);
 
   // On startup: mark any lingering 'active' sessions as 'ended'
   // (sessions left active from a previous server crash / restart)
