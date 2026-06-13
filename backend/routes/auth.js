@@ -7,54 +7,19 @@ import { adminDb } from "../supabase.js";
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
-/**
- * In-memory store for reconnect tokens.
- * Map<participantId, { token, sessionId, expiresAt }>
- * Exported so the signaling handler can verify reconnect attempts.
- */
 export const reconnectTokens = new Map();
 
 // ---------------------------------------------------------------------------
 // POST /auth/login
-// Accept { username, password } body.
-// Compare against AGENT_USERNAME / AGENT_PASSWORD env vars.
-// If AGENT_PASSWORD starts with '$2' treat it as a bcrypt hash; otherwise
-// fall back to plain-text equality.
-// Returns a signed Agent JWT with role: 'agent', 24-hour expiry.
+// Queries agents table in DB. Supports role: 'agent' | 'supervisor'.
+// Returns JWT with role embedded — used for RBAC throughout the system.
 // Requirements: 4.1, 4.7
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Known agent accounts loaded from env — supports multiple accounts
-// ---------------------------------------------------------------------------
-function getKnownAccounts() {
-  const accounts = [];
-
-  if (process.env.AGENT_USERNAME && process.env.AGENT_PASSWORD) {
-    accounts.push({
-      username: process.env.AGENT_USERNAME,
-      password: process.env.AGENT_PASSWORD,
-      name: "Support Agent",
-      role: "agent",
-    });
-  }
-
-  if (process.env.SUPERVISOR_USERNAME && process.env.SUPERVISOR_PASSWORD) {
-    accounts.push({
-      username: process.env.SUPERVISOR_USERNAME,
-      password: process.env.SUPERVISOR_PASSWORD,
-      name: "Supervisor",
-      role: "admin", // Distinct supervisor/operations role
-    });
-  }
-
-  return accounts;
-}
-
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body ?? {};
 
-    // ── Server-side input validation ────────────────────────────────────────
+    // Server-side input validation
     if (
       !username ||
       typeof username !== "string" ||
@@ -80,44 +45,40 @@ router.post("/login", async (req, res) => {
         .json({ error: "Password too long", code: "INVALID_PASSWORD" });
     }
 
-    const accounts = getKnownAccounts();
-    if (accounts.length === 0) {
-      return res.status(500).json({
-        error: "Server authentication not configured",
-        code: "SERVER_MISCONFIGURED",
-      });
-    }
+    // Look up agent in DB
+    const { data: agent, error: dbError } = await adminDb
+      .from("agents")
+      .select("id, username, password, name, role")
+      .eq("username", username.trim())
+      .single();
 
-    // Find matching account by username
-    const account = accounts.find((a) => a.username === username.trim());
-
-    if (!account) {
+    if (dbError || !agent) {
       return res
         .status(401)
         .json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
     }
 
-    // Password check — bcrypt hash or plain text
-    let passwordMatch = false;
-    if (account.password.startsWith("$2")) {
-      passwordMatch = await bcrypt.compare(password, account.password);
-    } else {
-      passwordMatch = password === account.password;
-    }
-
+    // Verify bcrypt password
+    const passwordMatch = await bcrypt.compare(password, agent.password);
     if (!passwordMatch) {
       return res
         .status(401)
         .json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" });
     }
 
+    // Sign JWT with actual role from DB
     const token = jwt.sign(
-      { sub: account.username, role: account.role, name: account.name },
+      {
+        sub: agent.id,
+        role: agent.role,
+        name: agent.name,
+        username: agent.username,
+      },
       JWT_SECRET,
       { expiresIn: "24h" },
     );
 
-    return res.json({ token, name: account.name, role: account.role });
+    return res.json({ token, name: agent.name, role: agent.role });
   } catch (err) {
     console.error("[auth/login] error:", err);
     return res
