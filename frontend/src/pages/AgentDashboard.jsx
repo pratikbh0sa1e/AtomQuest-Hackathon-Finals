@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button, Card, SectionLabel } from "../components/ui/";
 import Header from "../components/Header";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -135,7 +135,7 @@ function InviteCard({ inviteUrl, onDismiss }) {
 // Session Card (active sessions list)
 // ──────────────────────────────────────────────────────────────────────────────
 
-function SessionCard({ session }) {
+function SessionCard({ session, onJoin }) {
   return (
     <Card accentTop hoverEffect className="p-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -157,7 +157,7 @@ function SessionCard({ session }) {
 
         {/* Right: participant count + status badge */}
         <div className="flex items-center gap-4 shrink-0">
-          <div className="text-right">
+          <div className="text-right mr-2">
             <p
               className="text-2xl font-semibold leading-none"
               style={{
@@ -171,7 +171,19 @@ function SessionCard({ session }) {
               participants
             </p>
           </div>
-          <StatusBadge status={session.status} />
+          <div className="flex flex-col items-end gap-2">
+            <StatusBadge status={session.status} />
+            {session.status !== "ended" && (
+              <Button
+                variant="primary"
+                className="min-h-[36px] py-1 px-3 text-xs"
+                onClick={() => onJoin(session.id)}
+                aria-label={`Join call session ${session.id}`}
+              >
+                Join Call
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </Card>
@@ -324,6 +336,10 @@ export default function AgentDashboard() {
     }
   }
 
+  const handleJoinCall = useCallback((sessionId) => {
+    navigate(`/call/${sessionId}`);
+  }, [navigate]);
+
   // ── Split sessions into active vs history ─────────────────────────────────
   const activeSessions = sessions.filter((s) => s.status !== "ended");
   const historySessions = sessions.filter((s) => s.status === "ended");
@@ -412,7 +428,11 @@ export default function AgentDashboard() {
             }}
           >
             {activeSessions.map((session) => (
-              <SessionCard key={session.id} session={session} />
+              <SessionCard
+                key={session.id}
+                session={session}
+                onJoin={handleJoinCall}
+              />
             ))}
           </div>
         )}
