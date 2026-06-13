@@ -27,7 +27,7 @@ export default function Header() {
   const role = payload?.role ?? "";
   
   const isAgent = role === "agent";
-  const isAdmin = role === "admin";
+  const isSupervisor = role === "supervisor";
 
   const handleSignOut = () => {
     localStorage.removeItem("agent_token");
@@ -41,7 +41,7 @@ export default function Header() {
         borderColor: "var(--border)",
       }}
     >
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Logo wordmark */}
         <div className="flex items-center gap-3">
           <span
@@ -50,7 +50,7 @@ export default function Header() {
               fontFamily: '"Playfair Display", serif',
               color: "var(--foreground)",
             }}
-            onClick={() => navigate(isAdmin ? "/admin" : "/dashboard")}
+            onClick={() => navigate(isSupervisor ? "/admin" : "/dashboard")}
           >
             AURA<span className="text-[var(--accent)]">.</span>
           </span>
@@ -74,7 +74,7 @@ export default function Header() {
                 Dashboard
               </a>
             )}
-            {isAdmin && (
+            {isSupervisor && (
               <a
                 onClick={() => navigate("/admin")}
                 className="text-base font-semibold transition-colors cursor-pointer"
