@@ -1,4 +1,9 @@
 import "dotenv/config";
+import dns from "dns";
+
+// Force Node.js to use IPv4 first. Fixes 10-second undici/fetch timeouts to Supabase on Windows.
+dns.setDefaultResultOrder('ipv4first');
+
 import express from "express";
 import cors from "cors";
 import { createServer as createHttpServer } from "http";
@@ -118,6 +123,9 @@ app.use(
 // Health check
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+app.head("/health", (_req, res) => {
+  res.status(200).end();
 });
 
 // Metrics endpoint — auth handled inside the route (no auth middleware here)

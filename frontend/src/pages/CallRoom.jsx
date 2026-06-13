@@ -206,6 +206,19 @@ export default function CallRoom() {
       consumeRemoteTrack(producerId, kind);
     });
 
+    socket.on("peer-joined", ({ socketId, role }) => {
+      addSystemMessage("Participant joined.");
+      setRemoteName(role === "agent" ? "Agent" : "Customer");
+    });
+
+    socket.on("participant-left", ({ participantId }) => {
+      addSystemMessage("Participant left the room.");
+      setRemoteName("Waiting...");
+      setRemoteStream(null);
+      setIsRemoteMuted(false);
+      setIsRemoteVideoOff(false);
+    });
+
     socket.on("peer-media-state", ({ role, kind, enabled }) => {
       if (kind === "audio") {
         setIsRemoteMuted(!enabled);
@@ -276,6 +289,8 @@ export default function CallRoom() {
     // Cleanup on unmount — uses refs so tracks/socket are always current
     return () => {
       socket.off("session:joined");
+      socket.off("peer-joined");
+      socket.off("participant-left");
       socket.off("new-producer");
       socket.off("peer-media-state");
       socket.off("chat:message");
