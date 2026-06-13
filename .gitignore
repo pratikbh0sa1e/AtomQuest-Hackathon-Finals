@@ -121,3 +121,5 @@ temp/
 /ai-service/.venv/
 /ai-service/venv/
 /ai-service/env/
+*.pem
+
