@@ -106,7 +106,7 @@ export default function FileUploadButton({ sessionId, token, onUploadStart, onUp
         type="button"
         onClick={handleClick}
         disabled={uploading}
-        className="btn-control w-10 h-10 border border-neutral-700 bg-neutral-900 rounded-lg flex items-center justify-center cursor-pointer text-neutral-400 hover:text-white hover:border-[var(--accent)] transition-all min-h-0"
+        className="btn-control w-10 h-10 shrink-0 border border-neutral-700 bg-neutral-900 rounded-lg flex items-center justify-center cursor-pointer text-neutral-400 hover:text-white hover:border-[var(--accent)] transition-all min-h-0"
         title="Share image or PDF (Max 20MB)"
       >
         <PaperclipIcon />

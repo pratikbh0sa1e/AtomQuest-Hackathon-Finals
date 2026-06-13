@@ -140,8 +140,8 @@ export default function ChatPanel({
       </div>
 
       {/* Input Form Footer */}
-      <div className="p-4 border-t border-[var(--border)] bg-[var(--muted)]">
-        <form onSubmit={handleSubmit} className="flex gap-2 items-center">
+      <div className="p-4 border-t border-[var(--border)] bg-[var(--muted)] shrink-0">
+        <form onSubmit={handleSubmit} className="flex gap-2 items-center shrink-0">
           
           <FileUploadButton
             sessionId={sessionId}
@@ -160,7 +160,7 @@ export default function ChatPanel({
           <Button 
             type="submit" 
             variant="primary" 
-            className="w-10 h-10 p-0 shrink-0 min-h-0 flex items-center justify-center rounded-lg"
+            className="w-10 h-10 p-0 shrink-0 min-h-0 flex items-center justify-center rounded-lg text-white"
           >
             <SendIcon />
           </Button>
